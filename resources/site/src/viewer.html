@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PDF</title>
+    <link href="css/pdfviewer.css" rel="stylesheet">
+  </head>
+  <body>
+    <div id="toolbar">
+      <button id="prev" type="button" title="Previous page">&lsaquo;</button>
+      <input id="page" type="number" min="1" value="1">
+      <span id="count"></span>
+      <button id="next" type="button" title="Next page">&rsaquo;</button>
+      <span class="sep"></span>
+      <button id="zoomout" type="button" title="Zoom out">&minus;</button>
+      <span id="zoom">100%</span>
+      <button id="zoomin" type="button" title="Zoom in">+</button>
+      <span id="name"></span>
+    </div>
+    <div id="pages"></div>
+    <script type="module" src="js/pdfviewer.js"></script>
+  </body>
+</html>

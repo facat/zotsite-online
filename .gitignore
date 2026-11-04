@@ -6,3 +6,5 @@
 .pixi
 /pyproject.toml
 site
+*.conf
+*.log

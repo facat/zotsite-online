@@ -62,6 +62,15 @@ function ZoteroManager(levels, meta, isView) {
 	return tbl;
     }
 
+    // PDFs go through the bundled pdf.js viewer (viewer.html), which resumes
+    // and writes back storage/<key>/.zotero-reader-state
+    function viewerHref(resource) {
+        if (!/\.pdf$/i.test(resource)) {
+            return resource;
+        }
+        return 'viewer.html?file=' + encodeURIComponent(resource);
+    }
+
     // create the header pane containing title of attachment, collection or note
     // params:
     // node: the node currently selected in the left nav
@@ -107,9 +116,11 @@ function ZoteroManager(levels, meta, isView) {
 	// via; add tool tip if no attachement
 	btn.action = node.resource;
 	if (node.resource) {
-	    btn.onClick = node.resource;
-	    btn.setAttribute('onClick', "location.href='" +
-			     node.resource + "'");
+	    var res = node.resource;
+	    btn.onClick = res;
+	    btn.addEventListener('click', function () {
+	        location.href = viewerHref(res);
+	    });
 	} else {
 	    btn.classList.add('disabled');
 	    btn.setAttribute('data-toggle', 'tooltip');
@@ -398,6 +409,19 @@ function ZoteroManager(levels, meta, isView) {
 		    success: function(data) {              
 			aelem.innerHTML = data;
 		    }});
+	    } else if (/\.pdf$/i.test(node.resource)) {
+		var frame = document.createElement('iframe');
+
+		aelem.classList.add('embed-responsive');
+		aelem.classList.add('border');
+		aelem.classList.add('rounded');
+		aelem.classList.add('pdf-pane');
+
+		frame.setAttribute('src', viewerHref(node.resource));
+		frame.setAttribute('title', node.item_title);
+		frame.setAttribute('style', 'width: 100%; height: 100%; border: 0');
+
+		aelem.appendChild(frame);
 	    } else {
 		var objElem = document.createElement('object');
 
@@ -406,9 +430,9 @@ function ZoteroManager(levels, meta, isView) {
 		aelem.classList.add('rounded');
 		aelem.classList.add('pdf-pane');
 
-		objElem.setAttribute('data', node.resource);
 		objElem.setAttribute('type', 'application/pdf');
 		objElem.appendChild(document.createTextNode('No PDF plugin'));
+		objElem.setAttribute('data', node.resource);
 
 		aelem.appendChild(objElem);
 	    }
