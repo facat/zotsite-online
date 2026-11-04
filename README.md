@@ -14,6 +14,10 @@ following features:
 * Easily access your papers, site snapshots, notes from a navigation tree.
 * Provides metadata from collections and attachments (i.e. referenes etc).
 * Display PDF papers and website snapshot (the latter as framed).
+* Serve attachments in place from the Zotero library instead of copying them
+  (`file_mapping = native`), see [Local Changes in this Fork](#local-changes-in-this-fork).
+* Read PDFs in a bundled [pdf.js] viewer that saves the reading position back
+  into Zotero's own `.zotero-reader-state`.
 * Search function dynamically narrows down the papers you're looking for.
 * Embed links to a specific collection, article, item, note etc.
 * Export only a portion of your collection with regular expressions using the
@@ -27,6 +31,7 @@ following features:
 - [Documentation](#documentation)
 - [Obtaining](#obtaining)
 - [Process](#process)
+- [Local Changes in this Fork](#local-changes-in-this-fork)
 - [Sample Site Demonstration](#sample-site-demonstration)
 - [Requirements](#requirements)
 - [Usage](#usage)
@@ -68,8 +73,58 @@ The tool does the following:
    your [Zotero] library.  On MacOS, this is done by querying the file system
    SQLite DB files.
 2. Copies a static site that enables traversal of the exported data.
-3. Copies your [Zotero] stored papers, snapshot (sites) etc.
+3. Links your [Zotero] stored papers, snapshot (sites) etc.  With
+   `file_mapping = native` a directory junction (Windows) or symlink (POSIX)
+   `storage/` is placed in the site, so the attachments stay in the library.
 4. Generates a navigation tree to easily find your papers/content.
+
+
+## Local Changes in this Fork
+
+This checkout (`facat/zotsite-online`) carries the patches in
+[`patches/`](patches/README.md) on top of upstream `plandes/zotsite` `7b0594e`.
+
+* **Native attachment mapping** (`file_mapping = native`).  Instead of copying
+  every attachment (14 GB for a 1000 paper library), the export creates
+  `storage/` as a junction (`cmd /c mklink /J` on Windows) or symlink to
+  `<data_dir>/storage` and rewrites resource URLs to
+  `storage/<storage key>/<original file name>` (URL quoted).  The site therefore
+  has to be served from the machine holding the library.
+* **pdf.js viewer** (`site/viewer.html`).  PDFs open in a bundled
+  [pdf.js] 6.5.438 reader (lazy page rendering, fit to width, zoom) instead of
+  the browser's built in viewer.  The viewer starts on the page Zotero last
+  showed and saves the current page (800 ms debounce, `sendBeacon` on unload)
+  back to `storage/<key>/.zotero-reader-state`, so Zotero and the site share one
+  reading position.
+* **One click to a paper.**  Item nodes are made selectable in the browser and
+  every node carrying a resource renders it, so one click on an item opens its
+  attachment instead of only its metadata.
+* **Writable static server** (`serve.py`).  Replaces `python -m http.server`:
+  serves the exported site and implements `GET`/`POST /api/state`.
+
+### Export and serve
+
+```bash
+# Zotero must be closed: zotsite opens the SQLite DB read/write
+zotsite export -c zotero-lib.conf -o site     # requires file_mapping = native in the conf
+PYTHONUTF8=1 python -u serve.py               # http://127.0.0.1:8099
+```
+
+`serve.py` options: `-d/--dir` (exported site, default `site`), `-s/--storage`
+(root of the reader state files, default `D:/Zotero/DB/storage`), `-p/--port`.
+
+The state API:
+
+* `GET /api/state?key=<8 character storage key>` returns `{}` or the contents of
+  that attachment's `.zotero-reader-state`.
+* `POST /api/state` with `{"key": "...", "pageIndex": 12}` does a
+  read-modify-write of the file and keeps every other field (`scale`, `top`,
+  `left`, ...).  Invalid keys or page numbers are rejected with `400`.
+
+Static assets are sent with `Cache-Control: no-cache` (revalidated on reload, so
+an updated file is picked up), the API with `no-store`.  The pdf.js vendor tree
+(`resources/site/lib/js/pdfjs/`, 4.88 MB) is not in git; see
+[`patches/README.md`](patches/README.md) to restore it after an upgrade.
 
 
 ## Sample Site Demonstration
@@ -195,6 +250,7 @@ This software uses:
 * [Tree View] for Bootstrap
 * [Popper] for tooltips
 * [Copy to Clipboard] function
+* [pdf.js] for the PDF viewer
 
 
 ## Todo
@@ -255,5 +311,6 @@ Copyright (c) 2019 - 2026 Paul Landes
 [plugin]: https://www.zotero.org/support/plugins#website_integration
 [Copy to Clipboard]: https://ourcodeworld.com/articles/read/143/how-to-copy-text-to-clipboard-with-javascript-easily
 [BetterBibtex]: https://github.com/retorquere/zotero-better-bibtex
+[pdf.js]: https://mozilla.github.io/pdf.js/
 [configuration file]: test-resources/zotsite.conf
 [Python regular expression]: https://docs.python.org/3/library/re.html
