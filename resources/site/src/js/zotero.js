@@ -295,6 +295,16 @@ function ZoteroManager(levels, meta, isView) {
 	}
 
 	if (node) {
+	    // one click on an item should open its single attachment
+	    if (node.item_type != 'attachment' && !node.resource && node.nodes) {
+		var pdfs = node.nodes.filter(function (c) {
+		    return c.item_type == 'attachment' && /\.pdf$/i.test(c.resource || '');
+		});
+		if (pdfs.length == 1) {
+		    node = Object.assign({}, node, {resource: pdfs[0].resource,
+					    item_type: 'attachment'});
+		}
+	    }
 	    var meta = node.metadata;
 	    var sel = node.state.selected;
 	    var nodeType;
@@ -398,7 +408,7 @@ function ZoteroManager(levels, meta, isView) {
 	}
 
 	// add the (usually PDF orsnapshot site) attachemnt
-	if ((nodeType == 'attachment') && sel) {
+	if (sel && node.resource) {
 	    console.log('adding resource: ' + node.resource);
 	    var aelem = document.createElement('div');
 	    if (node.resource.endsWith('.html')) {
@@ -548,15 +558,28 @@ function ZoteroManager(levels, meta, isView) {
 	lastNode = null;
     }
 
+	// items with an attachment are marked non-selectable upstream: make them
+	// clickable so one click opens their attachment
+	function enableItemSelection(nodes) {
+	    $.each(nodes, function (i, node) {
+		if (node.node_type == 'item' && node.item_type != 'attachment' &&
+		    node.resource != null) {
+		    node.selectable = true;
+		}
+		if (node.nodes) enableItemSelection(node.nodes);
+	    });
+	}
+
     // initialization called on page load
     this.init = function(itemId) {
 	console.log('version: ' + meta.version);
+
+	enableItemSelection(tree);
 
 	$('#tree').treeview({
 	    data: tree,
 	    levels: levels,
 	    onNodeSelected: updateMain,
-	    onNodeUnselected: updateMain,
 	    onNodeExpanded: updateMain,
 	    onNodeCollapsed: updateMain,
 	    nodeDisabled: updateMain,
