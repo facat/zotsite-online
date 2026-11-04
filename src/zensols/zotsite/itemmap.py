@@ -6,6 +6,7 @@ __author__ = 'Paul Landes'
 from abc import ABC, abstractmethod
 import logging
 import re
+from urllib.parse import quote
 from zensols.zotsite import Item, Library
 
 logger = logging.getLogger(__name__)
@@ -92,3 +93,15 @@ class IdItemMapper(ItemMapper):
 
     def get_file_name(self, item: Item) -> str:
         return self._map(item)
+
+
+class NativeItemMapper(IdItemMapper):
+    """Map to the file's location in the library storage tree so the files are
+    linked in place rather than copied into the exported site.
+
+    """
+    def _map(self, item: Item) -> str:
+        if item.type == 'attachment' and item.path is not None:
+            path = (f'{self.lib.storage_dirname}/'
+                    f'{item.path.parent.name}/{item.path.name}')
+            return quote(path, safe='/')

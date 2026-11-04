@@ -5,3 +5,4 @@
 # pixi environments
 .pixi
 /pyproject.toml
+site

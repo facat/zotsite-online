@@ -8,13 +8,15 @@ from dataclasses import dataclass, field
 import logging
 import sys
 import json
+import os
+import subprocess
 from pathlib import Path
 from io import TextIOBase
 import shutil
 from zensols.config import Settings, ConfigFactory
 from zensols.persist import persisted
 from . import (
-    ZoteroApplicationError, RegexItemMapper, IdItemMapper,
+    ZoteroApplicationError, RegexItemMapper, IdItemMapper, NativeItemMapper,
     Library, Walker,
     NavCreateVisitor, FileSystemCopyVisitor, PruneVisitor, PrintVisitor,
     BetterBibtexVisitor,
@@ -64,7 +66,8 @@ class SiteCreator(object):
     """
     file_mapping: str = field(default='item')
     """Whether to use unique item IDs for the file names or the full PDF file
-    name; either: ``item`` or ``long``
+    name; either: ``item``, ``long`` or ``native`` (``native`` links the files
+    in the library storage tree instead of copying them)
 
     """
     out_dir: Path = field(default=None)
@@ -107,6 +110,8 @@ class SiteCreator(object):
             mapper = RegexItemMapper(self.library, r'.*\.pdf$', '[ ]')
         elif self.file_mapping == 'item':
             mapper = IdItemMapper(self.library)
+        elif self.file_mapping == 'native':
+            mapper = NativeItemMapper(self.library)
         else:
             raise ZoteroApplicationError(
                 f'Unknown file mapping: {self.file_mapping}')
@@ -150,12 +155,36 @@ class SiteCreator(object):
         documents that will be rendered in the site GUI.
 
         """
+        if self.file_mapping == 'native':
+            return self._mount_storage()
         dst: Path = self.out_dir
         fsvisitor = FileSystemCopyVisitor(
             self.library, dst, self.robust_fs, self.item_mapper)
         if logger.isEnabledFor(logging.INFO):
             logger.info(f'copying storage to {dst}')
         self.walker.walk(self.library, fsvisitor)
+
+    def _mount_storage(self):
+        """Link the library storage directory into the site instead of copying
+        it, which only works with :class:`.NativeItemMapper`.
+
+        """
+        src: Path = Path(self.library.data_dir, self.library.storage_dirname)
+        dst: Path = Path(self.out_dir, self.library.storage_dirname)
+        if not src.is_dir():
+            raise ZoteroApplicationError(f'Missing library storage: {src}')
+        if dst.exists() or dst.is_symlink():
+            logger.warning(f'storage already exists, not mounted: {dst}')
+            return
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        if os.name == 'nt':
+            # a junction does not need admin rights like a symlink does
+            subprocess.run(['cmd', '/c', 'mklink', '/J', str(dst), str(src)],
+                           check=True, capture_output=True)
+        else:
+            dst.symlink_to(src, target_is_directory=True)
+        if logger.isEnabledFor(logging.INFO):
+            logger.info(f'mounted storage {src} -> {dst}')
 
     def _copy_static_res(self, src: Path, dst: Path):
         """Copy static resources from the distribution package.

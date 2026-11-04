@@ -65,10 +65,12 @@ class ExportApplication(_Application):
         return self.resource.site_creator
 
     def _prepare_creator(self, output_dir: Path) -> Path:
-        if output_dir is not None:
-            self.site_creator.out_dir = output_dir
-        else:
-            output_dir = self.site_creator.out_dir
+        if output_dir is None:
+            out_dir = self.site_creator.out_dir
+            output_dir = (Path.cwd() / 'zotsite'
+                          if out_dir is None or str(out_dir) in ('', 'None')
+                          else out_dir)
+        self.site_creator.out_dir = output_dir
         if self.prune_pattern is not None:
             pat: re.Pattern = re.compile(self.prune_pattern)
             self.site_creator.prune_visitor.prune_pattern = pat
